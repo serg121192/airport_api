@@ -1,3 +1,33 @@
-from django.shortcuts import render
+from rest_framework import viewsets
 
-# Create your views here.
+
+class AirportViewSet:
+    pass
+
+
+class AirplaneTypeViewSet:
+    pass
+
+
+class CrewViewSet:
+    pass
+
+
+class AirplaneViewSet:
+    pass
+
+
+class RouteViewSet:
+    pass
+
+
+class FlightViewSet:
+    pass
+
+
+class TicketViewSet:
+    pass
+
+
+class OrderViewSet:
+    pass
