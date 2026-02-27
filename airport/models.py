@@ -15,7 +15,7 @@ class Airport(models.Model):
         verbose_name_plural = "airports"
 
     def __str__(self):
-        return f"Airport: {self.name} ({self.closest_city})"
+        return f"{self.name} ({self.closest_city})"
 
 
 class AirplaneType(models.Model):
@@ -25,12 +25,16 @@ class AirplaneType(models.Model):
         verbose_name_plural = "airplane_types"
 
     def __str__(self):
-        return f"Airplane type: {self.name}"
+        return f"Type: {self.name}"
 
 
 class Crew(models.Model):
     first_name = models.CharField(max_length=60, null=False)
     last_name = models.CharField(max_length=60, null=False)
+
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
 
     class Meta:
         verbose_name_plural = "staff"
@@ -67,7 +71,7 @@ class Airplane(models.Model):
         verbose_name_plural = "airplanes"
 
     def __str__(self):
-        return f"Airplane: {self.name} (seats: {self.number_of_seats})"
+        return f"{self.name} (seats: {self.number_of_seats})"
 
 
 class Route(models.Model):
@@ -84,10 +88,7 @@ class Route(models.Model):
         indexes = [models.Index(fields=["source", "destination"])]
 
     def __str__(self):
-        return (
-            f"Route: {self.source} - {self.destination} "
-            f"(distance: {self.distance})"
-        )
+        return f"{self.source} - {self.destination} "
 
 
 class Flight(models.Model):
