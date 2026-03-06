@@ -1,7 +1,13 @@
 from datetime import datetime
 
-from rest_framework import viewsets
 from django.db.models import F, Count
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from rest_framework import viewsets, mixins, status
+from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.response import Response
 
 from airport.models import (
     Airport,
@@ -11,8 +17,8 @@ from airport.models import (
     Flight,
     Order,
     Route,
-    Ticket,
 )
+from airport.permissions import IsAdminOrIfAuthenticatedReadOnly
 
 from airport.serializers import (
     AirportSerializer,
@@ -38,14 +44,20 @@ class AirportViewSet(viewsets.ModelViewSet):
     serializer_class = AirportSerializer
 
 
-class AirplaneTypeViewSet(viewsets.ModelViewSet):
+class AirplaneTypeViewSet(
+    mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet
+):
     queryset = AirplaneType.objects.all()
     serializer_class = AirplaneTypeSerializer
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
 
-class CrewViewSet(viewsets.ModelViewSet):
+class CrewViewSet(
+    mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet
+):
     queryset = Crew.objects.all()
     serializer_class = CrewSerializer
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
 
 class FlightViewSet(viewsets.ModelViewSet):
@@ -83,8 +95,13 @@ class FlightViewSet(viewsets.ModelViewSet):
         return FlightSerializer
 
 
-class AirplaneViewSet(viewsets.ModelViewSet):
-    queryset = Airplane.objects.all()
+class AirplaneViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    queryset = Airplane.objects.select_related("airplane_type")
 
     def get_serializer_class(self):
         if self.action == "list":

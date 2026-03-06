@@ -130,8 +130,8 @@ class TicketSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         data = super(TicketSerializer, self).validate(attrs=attrs)
         Ticket.validate_seat(
-            attrs["row"],
             attrs["seat"],
+            attrs["row"],
             attrs["flight"].airplane,
             ValidationError,
         )
@@ -140,7 +140,7 @@ class TicketSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ticket
-        fields = ["id", "row", "seat", "flight"]
+        fields = ["id", "seat", "row", "flight"]
 
 
 class TicketListSerializer(TicketSerializer):
@@ -150,7 +150,7 @@ class TicketListSerializer(TicketSerializer):
 class TicketSeatSerializer(TicketSerializer):
     class Meta:
         model = Ticket
-        fields = ["row", "seat"]
+        fields = ["seat", "row"]
 
 
 class FlightRetrieveSerializer(FlightSerializer):

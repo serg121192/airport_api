@@ -146,14 +146,29 @@ class Ticket(models.Model):
         ]
 
     @staticmethod
-    def validate_seat(seat: int, num_seats: int):
-        if not (1 <= seat <= num_seats):
-            raise ValidationError(
-                {"seat": f"Your seat number is out of range: 1..{num_seats}"}
-            )
+    def validate_seat(seat, row, airplane, err_to_raise):
+        for ticket_attr_value, ticket_attr_name, airplane_attr_name in [
+            (seat, "seat", "seats_in_row"),
+            (row, "row", "rows"),
+        ]:
+            count_attrs = getattr(airplane, airplane_attr_name)
+            if not (1 <= ticket_attr_value <= count_attrs):
+                raise err_to_raise(
+                    {
+                        ticket_attr_name: f"{ticket_attr_name} "
+                        f"number must be in available range: "
+                        f"(1, {airplane_attr_name}): "
+                        f"(1, {count_attrs})"
+                    }
+                )
 
     def clean(self):
-        self.validate_seat(self.seat, self.flight.airplane.number_of_seats)
+        Ticket.validate_seat(
+            self.seat,
+            self.row,
+            self.flight.airplane,
+            ValidationError,
+        )
 
     def save(self, *args, **kwargs):
         self.full_clean()
