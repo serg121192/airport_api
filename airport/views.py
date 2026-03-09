@@ -39,9 +39,12 @@ from airport.serializers import (
 )
 
 
-class AirportViewSet(viewsets.ModelViewSet):
+class AirportViewSet(
+    mixins.ListModelMixin, mixins.CreateModelMixin, viewsets.GenericViewSet
+):
     queryset = Airport.objects.all()
     serializer_class = AirportSerializer
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
 
 class AirplaneTypeViewSet(
@@ -60,16 +63,23 @@ class CrewViewSet(
     permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
 
-class FlightViewSet(viewsets.ModelViewSet):
+class FlightViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.CreateModelMixin,
+    viewsets.GenericViewSet,
+):
     queryset = Flight.objects.select_related("route", "airplane").annotate(
         tickets_available=(
             F("airplane__rows") * F("airplane__seats_in_row")
             - Count("tickets")
         )
     )
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
     def get_queryset(self):
         route_id_str = self.request.query_params.get("route")
+        airplane_id_str = self.request.query_params.get("airplane")
         departure_time = self.request.query_params.get("departure_time")
 
         queryset = self.queryset
@@ -83,7 +93,10 @@ class FlightViewSet(viewsets.ModelViewSet):
         if route_id_str:
             queryset = queryset.filter(route_id=int(route_id_str))
 
-        return queryset
+        if airplane_id_str:
+            queryset = queryset.filter(airplane_id=int(airplane_id_str))
+
+        return queryset.distinct()
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -93,6 +106,29 @@ class FlightViewSet(viewsets.ModelViewSet):
             return FlightRetrieveSerializer
 
         return FlightSerializer
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "route",
+                type=OpenApiTypes.INT,
+                description="Filter by route id (ex. ?route=1,2)",
+            ),
+            OpenApiParameter(
+                "airplane",
+                type=OpenApiTypes.INT,
+                description="Filter by airplane id (ex. ?airplane=1,2)",
+            ),
+            OpenApiParameter(
+                "departure_time",
+                type=OpenApiTypes.DATE,
+                description="Filter by departure time "
+                "(ex. ?departure_time=2026-03-10)",
+            ),
+        ]
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
 
 class AirplaneViewSet(
@@ -113,9 +149,31 @@ class AirplaneViewSet(
 
         return AirplaneSerializer
 
+    @action(
+        methods=["POST"],
+        detail=True,
+        url_path="upload-image",
+        permission_classes=[IsAdminUser],
+    )
+    def upload_image(self, request, pk=None) -> None:
+        plane = self.get_object()
+        serializer = self.get_serializer(plane, data=request.data)
 
-class RouteViewSet(viewsets.ModelViewSet):
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class RouteViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
     queryset = Route.objects.all()
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -127,10 +185,21 @@ class RouteViewSet(viewsets.ModelViewSet):
         return RouteSerializer
 
 
-class OrderViewSet(viewsets.ModelViewSet):
+class OrderPagination(PageNumberPagination):
+    page_size = 10
+    max_page_size = 50
+
+
+class OrderViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    viewsets.GenericViewSet,
+):
     queryset = Order.objects.prefetch_related(
         "tickets__flight__route", "tickets__flight__airplane"
     )
+    pagination_class = OrderPagination
+    permission_classes = (IsAuthenticated,)
 
     def get_queryset(self):
         return Order.objects.filter(user=self.request.user)
