@@ -5,6 +5,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
@@ -77,24 +78,39 @@ class FlightViewSet(
     )
     permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
+    @staticmethod
+    def _params_to_ints(qs):
+        """Converts a list of string IDs to a list of integers"""
+        return [int(str_id) for str_id in qs.split(",")]
+
     def get_queryset(self):
-        route_id_str = self.request.query_params.get("route")
-        airplane_id_str = self.request.query_params.get("airplane")
+        routes = self.request.query_params.get("routes")
+        airplanes = self.request.query_params.get("airplanes")
         departure_time = self.request.query_params.get("departure_time")
 
         queryset = self.queryset
 
         if departure_time:
-            departure_date = datetime.strptime(
-                departure_time, "%Y-%m-%d"
-            ).date()
-            queryset = queryset.filter(departure_time__date=departure_date)
+            try:
+                departure_date = datetime.strptime(
+                    departure_time, "%Y-%m-%d"
+                ).date()
+                queryset = queryset.filter(departure_time__date=departure_date)
+            except ValueError as err:
+                raise ValidationError(
+                    {
+                        "departure_time": "Wrong date format. "
+                        "Correct format: YYYY-MM-DD"
+                    }
+                ) from err
 
-        if route_id_str:
-            queryset = queryset.filter(route_id=int(route_id_str))
+        if routes:
+            route_ids = self._params_to_ints(routes)
+            queryset = queryset.filter(route__id__in=route_ids)
 
-        if airplane_id_str:
-            queryset = queryset.filter(airplane_id=int(airplane_id_str))
+        if airplanes:
+            airplane_ids = self._params_to_ints(airplanes)
+            queryset = queryset.filter(airplane__id__in=airplane_ids)
 
         return queryset.distinct()
 
@@ -110,12 +126,12 @@ class FlightViewSet(
     @extend_schema(
         parameters=[
             OpenApiParameter(
-                "route",
+                "routes",
                 type=OpenApiTypes.INT,
                 description="Filter by route id (ex. ?route=1,2)",
             ),
             OpenApiParameter(
-                "airplane",
+                "airplanes",
                 type=OpenApiTypes.INT,
                 description="Filter by airplane id (ex. ?airplane=1,2)",
             ),
@@ -138,6 +154,7 @@ class AirplaneViewSet(
     viewsets.GenericViewSet,
 ):
     queryset = Airplane.objects.select_related("airplane_type")
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -159,9 +176,9 @@ class AirplaneViewSet(
         plane = self.get_object()
         serializer = self.get_serializer(plane, data=request.data)
 
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
